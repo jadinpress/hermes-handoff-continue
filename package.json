@@ -1,0 +1,13 @@
+{
+  "name": "hermes-handoff-continue",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend-owned local Hermes handoff continuation",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --experimental-vm-modules --test desktop_backend.test.mjs && python -m unittest discover -p test_*.py -v",
+    "check": "node --check plugin.js"
+  },
+  "engines": { "node": ">=22" }
+}

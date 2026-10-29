@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+
+# Local credentials, environments, and generated artifacts.
+.env
+.env.*
+*.pem
+*.key
+.venv/
+venv/
+node_modules/
+.pytest_cache/
+coverage/
+dist/
+*.log
+
+# Runtime conversation content and profile state never belong in source control.
+handoffs/
+plugin-data/
+sessions/
+logs/
+auth.json
+config.yaml
+*.db
+*.db-*
+*.sqlite
+*.sqlite3

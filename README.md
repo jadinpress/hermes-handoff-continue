@@ -4,6 +4,53 @@ Version 2 runs entirely in the native Python backend. Desktop does not orchestra
 read files, claim events, open sessions, or change focus. The tiny `plugin.js` is
 an inert compatibility marker for existing paired installations, not a controller.
 
+## Install
+
+### Runtime prerequisites
+
+- A compatible Hermes installation with a running local canonical gateway and
+  a configured model provider. The required gateway capabilities are listed below.
+- Hermes's Python environment must provide `filelock` and the internal modules
+  this plugin imports. Use the plugin doctor command to check registration.
+- No separate handoff skill, npm packages, Node sidecar, browser automation, or
+  public network listener is required to run this plugin.
+
+After this repository is published, install into the intended profile:
+
+```sh
+hermes plugins install jadin-press/hermes-handoff-continue --enable
+hermes plugins show handoff-continue
+hermes plugins doctor handoff-continue --ci
+```
+
+For a named profile, prefix each command with `hermes -p PROFILE_NAME` instead
+of `hermes`. Each profile needs its own installation and enablement. If already
+installed but disabled, run `hermes plugins enable handoff-continue` in that profile.
+Do not use `--force` over an existing installation with unreviewed local changes.
+
+The manifest/plugin identifier is `handoff-continue`, even though the GitHub
+repository is named `hermes-handoff-continue`. The installer resolves that name.
+It may offer Node dependency installation because this repository has a developer
+`package.json`. You can decline that step: the package declares no npm dependencies
+and its scripts are only for development checks. `--yes-deps`, if used, answers
+the Python-dependency consent question, not the separate Node prompt.
+
+Follow the installer's activation message. On the tested build it reloaded the
+profile's native command without restarting the application. Otherwise start a
+new local session as directed; do not restart a shared gateway during active work
+without coordinating that interruption.
+
+In a local Desktop chat owned by the same profile, enter:
+
+```text
+/handoff-continue status
+```
+
+A fresh session should report `No handoff has been requested in this session.`
+This verifies command dispatch without starting a model turn. Use the bare
+`/handoff-continue` only when you intend to spend model-provider usage on a handoff
+and continuation. A working status command does not establish provider credentials.
+
 ## Use
 
 - `/handoff-continue` prepares a verified durable handoff and admits a continuation
@@ -77,18 +124,23 @@ Each profile uses its own resolved `$HERMES_HOME`:
 - Adjacent `.lock` and request-qualified `.cancel` files — concurrency/cancellation.
 
 Old handoff files and sessions remain untouched. Pre-v2 renderer state is not replayed.
-Install `__init__.py`, `backend.py`, and `plugin.yaml` into the owning profile's
-`plugins/handoff-continue/`. The default package retains the inert `desktop/plugin.js`;
-named profiles need no renderer. Preserve the existing enable list and Desktop choice.
-Hermes and its Python environment provide `filelock` and the canonical gateway client.
-Run plugin doctor before activation. A live native reload re-registers other plugins;
-obtain approval before using it during parallel work. No application restart is required.
+Use the supported installer above rather than manually copying files. The installed
+package is owned by the target profile under `plugins/handoff-continue/` and includes
+`__init__.py`, `backend.py`, and `plugin.yaml`. The repository-root `plugin.js` is
+an inert compatibility marker; there is no `desktop/plugin.js` in this package and
+no renderer is required for the native command. Preserve unrelated plugins and
+existing Desktop preferences during any migration from an older installation.
 
 Each additional profile needs explicit provisioning/enablement; no global watcher is added.
 Rollback restores backed-up package files and the compatibility renderer, then reloads
 the approved profile scopes. It does not delete handoffs, sessions, or job records.
 
 ## Verification
+
+Developer requirements are separate from runtime requirements: run the Python tests
+with a Hermes-capable interpreter and use Node 22 or newer for the JavaScript
+isolation/syntax checks. No `npm install` is needed because there are no npm
+dependencies. Local checks used Python 3.14.9 and Node 24.13.0.
 
 Run `npm test`, `npm run check`, `hermes plugins doctor . --ci`, and `git diff --check`.
 Python tests cover explicit command identity, the real canonical event/receipt shapes,
@@ -106,6 +158,11 @@ and a running local canonical gateway advertising `durable-admission-v1`, `event
 session-control APIs used above. Compatibility with arbitrary Hermes versions,
 remote gateways, and messaging platforms is not established. The gateway and
 Hermes Python modules must be available in the environment used for testing.
+
+The Windows test host's CLI reported Hermes Agent `v0.22.5 (2026.9.24)`, stable,
+local revision `bf0203a794a0`. This identifies the observed CLI build, not a proven
+minimum compatible release or a guarantee about other installations with that
+version label. The actual gateway contracts and registration checks still apply.
 
 The automated suite uses synthetic sessions and temporary directories; it does not
 send model prompts or prove end-to-end completion by a real successor agent.

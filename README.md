@@ -1,14 +1,13 @@
 # Handoff and Continue
 
-Handoff and Continue is a plugin for **Hermes Agent** that carries an ongoing task
-into a fresh chat without making you manually summarize the conversation and
-restart the work.
+Handoff and Continue automates session-to-session handoffs in **Hermes Agent**.
+Run `/handoff-continue` in the original session: the plugin has that agent write
+a handoff, automatically creates a new session in the same profile, and sends the
+new session a prompt to read the handoff and continue the task.
 
-Run `/handoff-continue` in the chat you want to hand off. The plugin asks the agent
-to save the task's goal, working state, verification results, approval boundaries,
-and next steps in a durable handoff file. It verifies that file, creates a fresh
-session in the same profile, and instructs the new agent to read the handoff and
-continue. You can inspect progress with `/handoff-continue status`.
+The handoff preserves the original goal, working state, verification results,
+approval boundaries, and next steps. The plugin verifies the saved handoff before
+starting the new session. Check progress with `/handoff-continue status`.
 
 The transfer runs in the background without switching your Desktop view. Open the
 new session when you are ready. Handoff instructions are built in; no separate

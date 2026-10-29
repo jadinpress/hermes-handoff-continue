@@ -111,6 +111,11 @@ The automated suite uses synthetic sessions and temporary directories; it does n
 send model prompts or prove end-to-end completion by a real successor agent.
 The plugin reports transfer/admission, not completed successor work.
 
+The self-contained prompts also passed a separate real-model smoke test: a source
+wrote a verified handoff and a fresh successor read it, completed a fictional file
+task, and finished successfully without invoking a handoff skill. See
+`VERIFICATION.md` for the evidence scope, checks, and remaining limitations.
+
 ## Privacy
 
 The source package does not include runtime handoffs, conversation histories,

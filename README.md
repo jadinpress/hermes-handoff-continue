@@ -1,8 +1,19 @@
 # Handoff and Continue
 
-Version 2 runs entirely in the native Python backend. Desktop does not orchestrate,
-read files, claim events, open sessions, or change focus. The tiny `plugin.js` is
-an inert compatibility marker for existing paired installations, not a controller.
+Handoff and Continue is a plugin for **Hermes Agent** that carries an ongoing task
+into a fresh chat without making you manually summarize the conversation and
+restart the work.
+
+Run `/handoff-continue` in the chat you want to hand off. The plugin asks the agent
+to save the task's goal, working state, verification results, approval boundaries,
+and next steps in a durable handoff file. It verifies that file, creates a fresh
+session in the same profile, and instructs the new agent to read the handoff and
+continue. You can inspect progress with `/handoff-continue status`.
+
+The transfer runs in the background without switching your Desktop view. Open the
+new session when you are ready. Handoff instructions are built in; no separate
+skill installation is needed. A successful transfer means the new agent's prompt
+was admitted, not that it has finished the task.
 
 ## Install
 

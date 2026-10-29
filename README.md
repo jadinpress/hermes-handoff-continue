@@ -15,10 +15,10 @@ an inert compatibility marker for existing paired installations, not a controlle
 - No separate handoff skill, npm packages, Node sidecar, browser automation, or
   public network listener is required to run this plugin.
 
-After this repository is published, install into the intended profile:
+Install from GitHub into the intended profile:
 
 ```sh
-hermes plugins install jadin-press/hermes-handoff-continue --enable
+hermes plugins install jadinpress/hermes-handoff-continue --enable
 hermes plugins show handoff-continue
 hermes plugins doctor handoff-continue --ci
 ```

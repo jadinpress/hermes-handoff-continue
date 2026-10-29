@@ -26,7 +26,11 @@ Creation never selects by title: the backend renames its fresh successor by exac
 ID and verifies the result. A conflicting title or uncertain rename stops before
 continuation, preserves the successor handle, and is never automatically retried.
 There are no palette actions or automatic navigation.
-Regular uses of the `handoff` skill still pause; this plugin does not change that skill.
+No separate `handoff` skill is needed: the plugin embeds both the handoff-writing
+instructions and the successor's resume instructions. It does not install or modify
+any skills. Task-specific skills may be used when already available and relevant;
+an essential missing task capability is reported as a blocker rather than installed
+automatically.
 
 ## Backend flow and safety
 
@@ -42,8 +46,11 @@ Regular uses of the `handoff` skill still pause; this plugin does not change tha
    cwd, model/provider, reasoning and service tier. Pause active source goal, loop,
    and heartbeat automation (never clear it) to prevent the old chat continuing in
    parallel. Paused automation is listed in status and is not automatically resumed.
-4. Ask the source agent to use backend file tools and the handoff skill. Require a
-   successful canonical completion correlated to both session and admission ID,
+4. Ask the source agent to use backend file tools and the embedded handoff instructions.
+   The document covers the original goal and next action, authoritative references,
+   working state, verification and blockers, approvals and stopping boundaries, and
+   optional suggested skills. It must redact secrets and unnecessary personal information.
+   Require a successful canonical completion correlated to both session and admission ID,
    including the exact per-request ready line. Read only the expected local artifact:
    bounded UTF-8, no NUL bytes, complete receipt, regular file under the durable root.
 5. Create a fresh empty-transcript session using canonical `request_id`, `source=gui`,
@@ -92,8 +99,9 @@ live slash dispatch and a synthetic real-model handoff are separate verification
 
 ### Compatibility and verification limits
 
-This plugin depends on Hermes internal Python APIs, the `handoff` skill, and a running
-local canonical gateway advertising `durable-admission-v1`, `event-replay-v1`, and
+Handoff preparation and resumption are self-contained; no separate skill download
+or installation is required. This plugin still depends on Hermes internal Python APIs
+and a running local canonical gateway advertising `durable-admission-v1`, `event-replay-v1`, and
 `local-cli-create-v1`. It also requires revision-checked session renaming and the
 session-control APIs used above. Compatibility with arbitrary Hermes versions,
 remote gateways, and messaging platforms is not established. The gateway and

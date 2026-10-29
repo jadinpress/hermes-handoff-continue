@@ -107,6 +107,42 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn('successor-1',self.service.handle('status','source-1','default'))
         self.assertEqual(len([1 for m,p in self.fake.calls if m=='session.detach']),2)
 
+    def test_handoff_prompt_contains_complete_instructions_without_external_skill(self):
+        self.run_flow()
+        prompt = next(p['text'] for m,p in self.fake.calls
+                      if m == 'prompt.submit' and p['session_id'] == 'source-1')
+        self.assertIn('No separate handoff skill is required', prompt)
+        self.assertNotIn('Use the handoff skill', prompt)
+        for requirement in (
+            'Original goal and next action',
+            'Authoritative references',
+            'Working state',
+            'Verification and blockers',
+            'Approvals and stopping boundaries',
+            'Suggested skills (optional)',
+            'do not clean, reset, or commit unrelated work',
+            'Redact secrets and unnecessary personal information',
+            'Read back the exact file',
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, prompt)
+        self.assertIn(str(self.home / 'handoffs' / 'test-token.md'), prompt)
+        self.assertIn('Handoff-Request: test-token', prompt)
+        self.assertIn('HERMES_HANDOFF_READY:test-token', prompt)
+        self.assertIn('do not implement more work', prompt)
+
+    def test_successor_can_resume_without_optional_suggested_skills(self):
+        self.run_flow()
+        prompt = next(p['text'] for m,p in self.fake.calls
+                      if m == 'prompt.submit' and p['session_id'] == 'successor-1')
+        self.assertIn('No separate handoff skill is required', prompt)
+        self.assertIn('optional and already available', prompt)
+        self.assertIn('do not install skills automatically', prompt)
+        self.assertIn('checkpoint, not current authority', prompt)
+        self.assertIn('reconcile completed work before repeating it', prompt)
+        self.assertIn('preserve its stopping boundaries', prompt)
+        self.assertIn('no new permission for consequential actions', prompt)
+
     def test_successor_inherits_source_title_and_increments_only_trailing_handoff(self):
         cases = [
             ('Move handoff-continue to backend and fix command',

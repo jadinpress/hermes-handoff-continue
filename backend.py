@@ -44,7 +44,8 @@ def _load_json(path: Path) -> dict:
 
 
 class BackendService:
-    def __init__(self, home: Path, profile: str):
+    def __init__(self, home: Path, profile: str, *, publish_event=None):
+        self._publish_event = publish_event
         self.home = Path(home).expanduser().resolve()
         self.profile = profile
         self.jobs_dir = self.home / "plugin-data" / "handoff-continue" / "jobs"
@@ -80,7 +81,7 @@ class BackendService:
                     lock.release()
         return state
 
-    def handle(self, action: str, stored_id: str, profile: str) -> str:
+    def handle(self, action: str, stored_id: str, profile: str, *, desktop_window_id=None) -> str:
         if action not in {"start", "status", "cancel"}:
             return "Usage: /handoff-continue [status|cancel]"
         if not isinstance(stored_id, str) or not stored_id or profile != self.profile:
@@ -113,6 +114,8 @@ class BackendService:
             state = {"version": 1, "stored_id": stored_id, "profile": profile,
                      "phase": "starting", "token": token, "created_at": time.time(),
                      "updated_at": time.time()}
+            if desktop_window_id is not None:
+                state["desktop_window_id"] = desktop_window_id
             _atomic_json(state_path, state)
             thread = threading.Thread(target=self._worker, args=(stored_id, state, lock), daemon=True,
                                       name="handoff-continue-" + token[:8])
@@ -395,6 +398,17 @@ class BackendService:
                 raise HandoffError("Successor exists; submission outcome unknown")
             state.update({"successor_admission_id": successor_admission, "phase": "complete"})
             self._save(state)
+            if state.get("desktop_window_id") is not None:
+                payload = {key: state[key] for key in (
+                    "desktop_window_id", "profile", "token", "stored_id", "successor_id",
+                    "successor_admission_id", "successor_title")}
+                # Presentation is optional: never downgrade persisted admission or retry it.
+                with suppress(Exception):
+                    publish = self._publish_event
+                    if publish is None:
+                        from hermes_cli.plugin_events import broadcast_plugin_event
+                        publish = broadcast_plugin_event
+                    publish("handoff-continue", "continuation.admitted", payload)
         finally:
             for sid, subscription in reversed(subscriptions):
                 with suppress(Exception):

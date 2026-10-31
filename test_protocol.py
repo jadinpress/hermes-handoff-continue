@@ -90,6 +90,97 @@ class ProtocolTests(unittest.TestCase):
         with patch.object(backend,'_DEADLINE',0.2):
             asyncio.run(self.service.run_workflow(self.job,self.fake))
 
+    def test_completion_notifies_origin_only_after_admission_is_persisted(self):
+        import inspect
+        self.assertIn('publish_event', inspect.signature(backend.BackendService).parameters)
+        self.job['desktop_window_id'] = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        notifications = []
+        def record(plugin_id, event, payload):
+            saved = backend._load_json(self.service._paths('source-1')[0])
+            self.assertEqual(saved['phase'], 'complete')
+            self.assertEqual(saved['successor_admission_id'], 'next-admission')
+            self.assertEqual(saved['desktop_window_id'], self.job['desktop_window_id'])
+            notifications.append((plugin_id, event, payload))
+        self.service = backend.BackendService(self.home, 'default', publish_event=record)
+        self.run_flow()
+        self.assertEqual(notifications, [('handoff-continue', 'continuation.admitted', {
+            'desktop_window_id': self.job['desktop_window_id'], 'profile': 'default',
+            'token': 'test-token', 'stored_id': 'source-1', 'successor_id': 'successor-1',
+            'successor_admission_id': 'next-admission', 'successor_title': 'Untitled session [Handoff 1]',
+        })])
+
+    def test_backend_only_completion_does_not_publish_without_origin(self):
+        notifications = []
+        self.service = backend.BackendService(self.home, 'default',
+            publish_event=lambda *args: notifications.append(args))
+        failure = None
+        try:
+            self.run_flow()
+        except Exception as exc:
+            failure = exc
+        self.assertIsNone(failure)
+        self.assertEqual(self.job['phase'], 'complete')
+        self.assertEqual(notifications, [])
+
+    def test_default_publisher_uses_public_namespaced_plugin_event_api(self):
+        self.job['desktop_window_id'] = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        with patch('hermes_cli.plugin_events.broadcast_plugin_event') as publish:
+            self.run_flow()
+        publish.assert_called_once_with('handoff-continue', 'continuation.admitted', {
+            key: self.job[key] for key in ('desktop_window_id', 'profile', 'token', 'stored_id',
+                                         'successor_id', 'successor_admission_id', 'successor_title')})
+
+    def test_nonadmitted_paths_never_publish_even_with_origin(self):
+        for scenario in ('cancelled', 'bad_artifact', 'lost_send', 'unknown_source', 'unknown_successor'):
+            with self.subTest(scenario=scenario):
+                self.job = {'stored_id': 'source-1', 'profile': 'default', 'token': 'test-token',
+                            'phase': 'starting',
+                            'desktop_window_id': 'b78652d0-7ec4-40de-bf21-f4970d11f5be'}
+                self.fake = CanonicalGateway(self.home, self.job)
+                notifications = []
+                self.service = backend.BackendService(self.home, 'default',
+                    publish_event=lambda *args: notifications.append(args))
+                self.fake.bad_file = scenario == 'bad_artifact'
+                self.fake.lose_send = scenario == 'lost_send'
+                rpc = self.fake.rpc
+                async def altered(method, **params):
+                    result = await rpc(method, **params)
+                    if method == 'prompt.submit' and (
+                        scenario == 'unknown_source' and params['session_id'] == 'source-1' or
+                        scenario == 'unknown_successor' and params['session_id'] == 'successor-1'
+                    ):
+                        return {'status': 'unknown', 'admission_id': 'not-confirmed'}
+                    return result
+                with patch.object(self.fake, 'rpc', altered), patch.object(
+                        self.service, '_cancelled', return_value=scenario == 'cancelled'):
+                    if scenario == 'cancelled':
+                        self.run_flow()
+                        self.assertEqual(self.job['phase'], 'cancelled')
+                    else:
+                        with self.assertRaises((backend.HandoffError, ConnectionError)):
+                            self.run_flow()
+                self.assertNotEqual(self.job['phase'], 'complete')
+                self.assertNotIn('successor_admission_id', self.job)
+                self.assertEqual(notifications, [])
+
+    def test_failed_final_persistence_does_not_publish_admission(self):
+        self.job['desktop_window_id'] = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        notifications = []
+        self.service = backend.BackendService(self.home, 'default',
+            publish_event=lambda *args: notifications.append(args))
+        save = self.service._save
+        def fail_complete(state):
+            if state['phase'] == 'complete':
+                raise OSError('disk unavailable')
+            save(state)
+        with patch.object(self.service, '_save', fail_complete):
+            with self.assertRaises(OSError):
+                self.run_flow()
+        saved = backend._load_json(self.service._paths('source-1')[0])
+        self.assertNotEqual(saved['phase'], 'complete')
+        self.assertNotIn('successor_admission_id', saved)
+        self.assertEqual(notifications, [])
+
     def test_actual_owner_capabilities_profile_event_envelope_and_create_fields(self):
         self.run_flow()
         create = next(p for m,p in self.fake.calls if m=='session.create')

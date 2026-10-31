@@ -9,10 +9,11 @@ The handoff preserves the original goal, working state, verification results,
 approval boundaries, and next steps. The plugin verifies the saved handoff before
 starting the new session. Check progress with `/handoff-continue status`.
 
-The transfer runs in the background without switching your Desktop view. Open the
-new session when you are ready. Handoff instructions are built in; no separate
-skill installation is needed. A successful transfer means the new agent's prompt
-was admitted, not that it has finished the task.
+The transfer runs on the backend. Once the new agent's prompt is admitted, the
+Desktop half opens and selects the successor as a tab in the window that invoked
+the command. Other windows are left alone, even if they display the same source
+session. Handoff instructions are built in; no separate skill installation is
+needed. Admission does not mean the new agent has finished the task.
 
 ## Install
 
@@ -72,8 +73,10 @@ and continuation. A working status command does not establish provider credentia
   or in-flight RPCs cannot be revoked; known successor handles are preserved.
 
 Let the source turn finish first. You can switch chats or work elsewhere immediately;
-there is no focus lease. Open the successor manually from the normal session list
-(`Original title [Handoff 1]`, then `[Handoff 2]`, and so on). Only a trailing
+there is no focus lease. When continuation is admitted, its tab is selected in the
+originating window, regardless of which chat is selected then. If that window was
+closed or reloaded, no replacement window is opened; find the successor in the
+normal session list (`Original title [Handoff 1]`, then `[Handoff 2]`, and so on). Only a trailing
 `[Handoff N]` suffix is incremented; other title text is preserved. Untitled sources
 use `Untitled session [Handoff 1]`. The chosen successor title is saved in the job;
 request tokens remain in durable metadata rather than the visible title.
@@ -82,7 +85,9 @@ always retaining the complete numbered suffix.
 Creation never selects by title: the backend renames its fresh successor by exact
 ID and verifies the result. A conflicting title or uncertain rename stops before
 continuation, preserves the successor handle, and is never automatically retried.
-There are no palette actions or automatic navigation.
+There are no palette actions or Desktop DOM/computer-use automation. Automatic
+tab selection is presentation only: failure to open a tab never repeats a handoff
+or resends the continuation.
 No separate `handoff` skill is needed: the plugin embeds both the handoff-writing
 instructions and the successor's resume instructions. It does not install or modify
 any skills. Task-specific skills may be used when already available and relevant;
@@ -94,7 +99,9 @@ automatically.
 1. Capture the gateway's explicit `source`, `platform`, and canonical chat identity.
    Default-profile `source.profile=None` is resolved against the registered home.
    Legacy bound Desktop context remains supported; messaging/unknown contexts and
-   mismatched profiles fail closed. No renderer claim/broadcast is involved.
+   mismatched profiles fail closed. On compatible Desktop/gateway builds, capture
+   an optional renderer-lifetime `desktop_window_id`; it is a destination hint,
+   never session identity or authorization. No renderer claim controls execution.
 2. Acquire an OS file lock per source, persist the request, and attach a daemon worker
    to the already-running local gateway through its authenticated canonical client.
    Discovery never starts/restarts a gateway or falls back to a remote URL. Validate
@@ -118,6 +125,11 @@ automatically.
    A successful transfer means the continuation was admitted, **not** that its work
    finished. Transport loss, ambiguous replies, cancellation, unload/reload, or stale
    worker state never trigger an automatic resend.
+7. If an originating window was captured, publish the admitted-continuation event
+   after saving completion. Only that renderer may open the successor through the
+   SDK's tab API, using the receiving local connection and exact owning profile.
+   Duplicate events are consumed before opening; plugin unload disarms pending
+   presentation. Event or tab failures do not change the backend admission result.
 
 An existing request blocks another start for that source, including an uncertain
 request. Inspect status and the known sessions rather than deleting state and retrying.
@@ -136,9 +148,11 @@ Each profile uses its own resolved `$HERMES_HOME`:
 Old handoff files and sessions remain untouched. Pre-v2 renderer state is not replayed.
 Use the supported installer above rather than manually copying files. The installed
 package is owned by the target profile under `plugins/handoff-continue/` and includes
-`__init__.py`, `backend.py`, and `plugin.yaml`. The repository-root `plugin.js` is
-an inert compatibility marker; there is no `desktop/plugin.js` in this package and
-no renderer is required for the native command. Preserve unrelated plugins and
+`__init__.py`, `backend.py`, `plugin.yaml`, and the paired `desktop/plugin.js`.
+The repository-root `plugin.js` contains identical presentation code for existing
+standalone installations; do not install a second independent copy. The paired
+Desktop half must be enabled for automatic tab selection, but no renderer is
+required for the native backend handoff command. Preserve unrelated plugins and
 existing Desktop preferences during any migration from an older installation.
 
 Each additional profile needs explicit provisioning/enablement; no global watcher is added.
@@ -155,8 +169,10 @@ dependencies. Local checks used Python 3.14.9 and Node 24.13.0.
 Run `npm test`, `npm run check`, `hermes plugins doctor . --ci`, and `git diff --check`.
 Python tests cover explicit command identity, the real canonical event/receipt shapes,
 source/admission correlation, file verification, source automation pause, OS locks,
-cancellation, unload, stale/corrupt state, and uncertain sends. The Node VM test rejects
-any Desktop SDK import or DOM access. These automated tests use fake gateway I/O;
+cancellation, unload, stale/corrupt state, and uncertain sends. Node VM tests reject
+DOM access and orchestration RPCs while exercising the SDK presentation boundary,
+including originating-window isolation, duplicate events, route mismatch and unload.
+These automated tests use fake gateway I/O;
 live slash dispatch and a synthetic real-model handoff are separate verification gates.
 
 ### Compatibility and verification limits
@@ -177,6 +193,15 @@ version label. The actual gateway contracts and registration checks still apply.
 The automated suite uses synthetic sessions and temporary directories; it does not
 send model prompts or prove end-to-end completion by a real successor agent.
 The plugin reports transfer/admission, not completed successor work.
+
+Automatic tab selection additionally requires Desktop `host.windowId`, a canonical
+gateway advertising `desktop-command-origin-v1`, and the paired Desktop half.
+Older builds keep the backend-only behavior without guessing a window. The
+currently supported publisher runs with `plugins.isolation: in_process`; delivery
+from isolated plugin-host processes is not established. Do not change isolation
+settings just to enable presentation. Remote gateway tab presentation is not enabled.
+Events are best-effort, not replayed after closing/reloading a renderer; use the
+successor ID from `/handoff-continue status` if presentation is unavailable.
 
 The self-contained prompts also passed a separate real-model smoke test: a source
 wrote a verified handoff and a fresh successor read it, completed a fictional file

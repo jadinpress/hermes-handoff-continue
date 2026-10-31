@@ -74,6 +74,41 @@ observed failing before their implementation, then passing. Source and Git histo
 were scanned for secrets; targeted personal-information checks were also run.
 These checks reduce risk but cannot guarantee absence of every sensitive detail.
 
+## Originating-window tab presentation (2.1 candidate)
+
+The new candidate was verified in source, not installed over the running plugin:
+
+- All 46 Python plugin tests and 12 Node VM presentation/packaging tests passed.
+- Both Desktop entry files passed JavaScript syntax checks; plugin doctor and
+  whitespace checks passed.
+- Presentation tests cover exact originating-window matching (including two
+  windows showing one source), duplicate/concurrent delivery, plugin reload,
+  closed/reloaded windows, missing/remote/ambiguous routes, profile/connection
+  mismatch, malformed payloads, unload during route discovery, and presentation
+  failure without retry or backend orchestration.
+- Backend tests prove window capture cannot be rebound by status/cancel/duplicate
+  commands; notification follows persisted successor admission and is absent on
+  rejected/uncertain paths. Publisher failure leaves the backend complete.
+- The companion core checkout passed 468 focused Desktop tests, renderer type
+  checking, changed-file ESLint checks and a production Desktop build. Its scoped
+  Python gateway/context/contracts/event suite passed 64 tests; one existing
+  Linux-only daemon test was skipped on Windows. Generated contracts were checked.
+- Integration regressions exercise the real canonical adapter/boot stamping path
+  during profile switching and actual SDK-to-core tile ownership/keep-sets. The
+  SDK cancellation tests hold activation pending through caller disposal and
+  check the final navigation fence. Transport-global publishing profile is
+  intentionally unknown; the payload profile is only a route hint, not auth.
+- New positive origin/tab behavior was observed failing before implementation.
+  The stable-ID lifecycle test and already-correct rejection paths are additional
+  regression coverage, not claims of separate test-first history.
+
+The core and plugin require coordinated activation. No live gateway restart,
+Desktop replacement, production plugin update, or real-model tab smoke was
+performed for this candidate. The earlier real-model and installation results
+above apply to their named revisions, not to this new presentation behavior.
+Automatic presentation currently targets local, in-process publisher delivery;
+isolated plugin-host and remote presentation are not claimed.
+
 ## Limits
 
 - The real-model test exercised the candidate command handler and backend, not

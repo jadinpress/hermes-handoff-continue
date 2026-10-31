@@ -1,4 +1,4 @@
 name: handoff-continue
-version: 2.0.0
+version: 2.1.0
 description: "Backend-owned verified handoff continuation via /handoff-continue; no Desktop automation."
 author: "jadinpress"

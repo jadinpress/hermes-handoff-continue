@@ -1,9 +1,10 @@
-"""Native backend-owned handoff command; no renderer event bridge."""
+"""Native backend-owned handoff command with optional origin-window context."""
 import re
 
 _USAGE = "Usage: /handoff-continue [status|cancel]"
 _PROFILE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 _SESSION = re.compile(r"[a-zA-Z0-9_-]{1,160}")
+_WINDOW = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 _UNSET = object()
 
 
@@ -15,10 +16,13 @@ def create_handler(service, get_env, profile_name="default"):
     Explicit empty values never fall back to a possibly unrelated ambient ID.
     """
     def handle(raw_args, *, source=None, platform=_UNSET,
-               session_id=_UNSET, session_key=_UNSET):
+               session_id=_UNSET, session_key=_UNSET, desktop_window_id=None):
         args = raw_args.strip().split()
         if args not in ([], ["status"], ["cancel"]):
             return _USAGE
+        if desktop_window_id is not None and (
+                not isinstance(desktop_window_id, str) or not _WINDOW.fullmatch(desktop_window_id)):
+            return "Handoff refused: invalid Desktop window identity."
         surface = get_env("HERMES_SESSION_SOURCE", "") if platform is _UNSET else platform
         if surface not in ("local", "desktop"):
             return "Use /handoff-continue in an existing local Desktop session."
@@ -35,7 +39,10 @@ def create_handler(service, get_env, profile_name="default"):
                 or profile != profile_name):
             return "Handoff refused: local session identity or owning profile is missing/mismatched."
         try:
-            return service.handle(args[0] if args else "start", stored_id=stored, profile=profile)
+            context = {"stored_id": stored, "profile": profile}
+            if desktop_window_id is not None:
+                context["desktop_window_id"] = desktop_window_id
+            return service.handle(args[0] if args else "start", **context)
         except Exception as exc:
             # Never route an exception back into model/skill fallback dispatch.
             return f"Handoff backend refused the request ({type(exc).__name__}); inspect backend status/logs. No automatic retry."

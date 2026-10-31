@@ -29,6 +29,56 @@ class ServiceTests(unittest.TestCase):
         state['phase']='cancelled' if self.service._cancelled(state) else 'complete'
         self.service._save(state)
 
+    def test_origin_window_is_persisted_once_and_never_rebound(self):
+        window = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        other = 'c78652d0-7ec4-40de-bf21-f4970d11f5be'
+        with patch.object(self.service, '_connected_workflow', self.held_worker):
+            try:
+                result = self.service.handle('start', 'source', 'default', desktop_window_id=window)
+            except TypeError:
+                result = 'origin window context unsupported'
+            self.assertIn('started', result)
+            self.assertTrue(self.started.wait(2))
+            before = self.service._read_state('source')
+            self.assertEqual(before['desktop_window_id'], window)
+            for action in ('status', 'start', 'cancel'):
+                self.service.handle(action, 'source', 'default', desktop_window_id=other)
+                state = self.service._read_state('source')
+                self.assertEqual(state['desktop_window_id'], window)
+                self.assertEqual(state['token'], before['token'])
+            self.release.set()
+            for thread in list(self.service._threads): thread.join(timeout=3)
+            self.assertIn('prior handoff', self.service.handle('start', 'source', 'default', desktop_window_id=other))
+            self.assertEqual(self.service._read_state('source')['desktop_window_id'], window)
+
+    def test_notification_failure_keeps_complete_state_and_never_replays(self):
+        from test_protocol import CanonicalGateway
+        notifications, clients = [], []
+        def fail_notification(*args):
+            notifications.append(args)
+            raise OSError('presentation unavailable')
+        self.service = backend.BackendService(self.home, 'default', publish_event=fail_notification)
+        async def connected(state):
+            client = CanonicalGateway(self.home, state)
+            clients.append(client)
+            await self.service.run_workflow(state, client)
+        window = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        with patch.object(self.service, '_connected_workflow', connected):
+            self.service.handle('start', 'source-1', 'default', desktop_window_id=window)
+            for thread in list(self.service._threads): thread.join(timeout=10)
+        state = self.service._read_state('source-1')
+        self.assertEqual(state['phase'], 'complete')
+        self.assertEqual(state['successor_id'], 'successor-1')
+        self.assertEqual(state['successor_admission_id'], 'next-admission')
+        self.assertEqual(state['desktop_window_id'], window)
+        before = dict(state)
+        for action in ('status', 'cancel', 'start'):
+            self.service.handle(action, 'source-1', 'default')
+        self.assertEqual(self.service._read_state('source-1'), before)
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(len(clients), 1)
+        self.assertEqual(len([1 for m, p in clients[0].calls if m == 'prompt.submit']), 2)
+
     def test_status_has_no_side_effect_without_job(self):
         self.assertIn('No handoff',self.service.handle('status','source','default'))
         self.assertFalse(self.service.jobs_dir.exists())

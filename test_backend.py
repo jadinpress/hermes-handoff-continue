@@ -28,6 +28,31 @@ class BackendCommandTests(unittest.TestCase):
         self.assertIn('No handoff', reply)
         self.assertEqual(calls, [('status', {'stored_id': 'stored-source', 'profile': 'default'})])
 
+    def test_command_captures_originating_window_in_service_context(self):
+        import inspect
+        calls = []
+        service = types.SimpleNamespace(handle=lambda *a, **kw: calls.append((a, kw)) or 'started')
+        handler = self.module.create_handler(service, lambda *_: '')
+        self.assertIn('desktop_window_id', inspect.signature(handler).parameters)
+        window = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        source = types.SimpleNamespace(profile='default', chat_id='source')
+        self.assertEqual(handler('', platform='local', source=source, desktop_window_id=window), 'started')
+        self.assertEqual(calls, [(('start',), {'stored_id': 'source', 'profile': 'default',
+                                               'desktop_window_id': window})])
+
+    def test_malformed_window_identity_never_calls_service(self):
+        calls = []
+        service = types.SimpleNamespace(handle=lambda *a, **kw: calls.append((a, kw)) or 'started')
+        handler = self.module.create_handler(service, lambda *_: '')
+        source = types.SimpleNamespace(profile='default', chat_id='source')
+        valid = 'b78652d0-7ec4-40de-bf21-f4970d11f5be'
+        for value in ('', valid.upper(), ' ' + valid, valid + '\n', valid.replace('-40de-', '-10de-'),
+                      valid.replace('-bf21-', '-7f21-'), valid.replace('-', ''), 42, False, {}, []):
+            with self.subTest(value=value):
+                reply = handler('', platform='local', source=source, desktop_window_id=value)
+                self.assertIn('window', reply.lower())
+                self.assertEqual(calls, [])
+
     def test_unknown_or_messaging_surface_fails_closed(self):
         handler = self.module.create_handler(None, lambda *_: '')
         for platform in (None, 'telegram', 'discord'):
